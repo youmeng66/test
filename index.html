@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>简易相机拍照功能</title>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            text-align: center;
+        }
+        h1 {
+            color: #333;
+        }
+        .camera-container {
+            margin: 20px 0;
+            position: relative;
+        }
+        #video {
+            background-color: #eee;
+            width: 100%;
+            max-width: 640px;
+            border-radius: 8px;
+            display: block;
+            margin: 0 auto;
+        }
+        #canvas {
+            display: none;
+        }
+        .controls {
+            margin: 20px 0;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            margin: 0 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        #capture {
+            background-color: #2196F3;
+        }
+        #capture:hover {
+            background-color: #0b7dda;
+        }
+        #reset {
+            background-color: #f44336;
+        }
+        #reset:hover {
+            background-color: #d32f2f;
+        }
+        .result {
+            margin-top: 20px;
+        }
+        #photo {
+            max-width: 100%;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+        .error {
+            color: #f44336;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>简易相机拍照功能</h1>
+    
+    <div class="camera-container">
+        <video id="video" autoplay playsinline></video>
+        <canvas id="canvas"></canvas>
+    </div>
+    
+    <div class="controls">
+        <button id="start">启动摄像头</button>
+        <button id="capture" disabled>拍照</button>
+        <button id="reset" disabled>重置</button>
+    </div>
+    
+    <div class="result">
+        <h2>拍摄结果</h2>
+        <img id="photo" alt="拍摄的照片将显示在这里">
+    </div>
+
+    <script>
+        // 获取DOM元素
+        const video = document.getElementById('video');
+        const canvas = document.getElementById('canvas');
+        const photo = document.getElementById('photo');
+        const startBtn = document.getElementById('start');
+        const captureBtn = document.getElementById('capture');
+        const resetBtn = document.getElementById('reset');
+        const errorDisplay = document.createElement('div');
+        errorDisplay.className = 'error';
+        document.body.insertBefore(errorDisplay, document.querySelector('.camera-container'));
+
+        // 摄像头流
+        let stream = null;
+
+        // 启动摄像头
+        startBtn.addEventListener('click', async () => {
+            try {
+                // 请求摄像头权限
+                stream = await navigator.mediaDevices.getUserMedia({
+                    video: {
+                        width: { ideal: 1280 },
+                        height: { ideal: 720 },
+                        facingMode: 'environment' // 优先使用后置摄像头
+                    },
+                    audio: false
+                });
+                
+                // 将视频流绑定到video元素
+                video.srcObject = stream;
+                
+                // 启用拍照按钮
+                captureBtn.disabled = false;
+                startBtn.disabled = true;
+                errorDisplay.textContent = '';
+                
+            } catch (err) {
+                console.error('摄像头访问错误:', err);
+                errorDisplay.textContent = `无法访问摄像头: ${err.message}`;
+            }
+        });
+
+        // 拍照
+        captureBtn.addEventListener('click', () => {
+            // 设置canvas尺寸与视频相同
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            
+            // 在canvas上绘制当前视频帧
+            const context = canvas.getContext('2d');
+            context.drawImage(video, 0, 0, canvas.width, canvas.height);
+            
+            // 将canvas内容转换为图片并显示
+            const dataUrl = canvas.toDataURL('image/png');
+            photo.src = dataUrl;
+            
+            // 启用重置按钮
+            resetBtn.disabled = false;
+        });
+
+        // 重置
+        resetBtn.addEventListener('click', () => {
+            photo.src = '';
+            resetBtn.disabled = true;
+        });
+
+        // 页面卸载时关闭摄像头
+        window.addEventListener('beforeunload', () => {
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
+            }
+        });
+    </script>
+</body>
+</html>
