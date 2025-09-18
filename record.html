@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>录音功能演示</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            text-align: center;
+        }
+        h1 {
+            color: #333;
+        }
+        button {
+            background-color: #4CAF50;
+            border: none;
+            color: white;
+            padding: 10px 20px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 16px;
+            margin: 10px 5px;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        #recordBtn {
+            background-color: #f44336;
+        }
+        #stopBtn {
+            background-color: #2196F3;
+        }
+        #status {
+            margin: 20px 0;
+            font-weight: bold;
+        }
+        #audioContainer {
+            margin-top: 20px;
+        }
+        #recordingsList {
+            margin-top: 20px;
+            text-align: left;
+        }
+        .recording-item {
+            margin: 10px 0;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <h1>录音功能演示</h1>
+    
+    <div>
+        <button id="recordBtn">开始录音</button>
+        <button id="stopBtn" disabled>停止录音</button>
+        <button id="playBtn" disabled>播放最新录音</button>
+    </div>
+    
+    <div id="status">准备就绪</div>
+    
+    <div id="audioContainer"></div>
+    
+    <div id="recordingsList">
+        <h3>录音记录</h3>
+    </div>
+    
+    <script>
+        // 获取DOM元素
+        const recordBtn = document.getElementById('recordBtn');
+        const stopBtn = document.getElementById('stopBtn');
+        const playBtn = document.getElementById('playBtn');
+        const status = document.getElementById('status');
+        const audioContainer = document.getElementById('audioContainer');
+        const recordingsList = document.getElementById('recordingsList');
+        
+        // 音频相关变量
+        let mediaRecorder;
+        let audioChunks = [];
+        let recordings = [];
+        
+        // 检查浏览器是否支持录音
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            status.textContent = '您的浏览器不支持录音功能';
+            recordBtn.disabled = true;
+        } else {
+            // 开始录音
+            recordBtn.addEventListener('click', async () => {
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    mediaRecorder = new MediaRecorder(stream);
+                    
+                    mediaRecorder.ondataavailable = (event) => {
+                        if (event.data.size > 0) {
+                            audioChunks.push(event.data);
+                        }
+                    };
+                    
+                    mediaRecorder.onstop = () => {
+                        const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+                        const audioUrl = URL.createObjectURL(audioBlob);
+                        const timestamp = new Date().toLocaleString();
+                        
+                        // 保存录音
+                        recordings.push({
+                            url: audioUrl,
+                            timestamp: timestamp
+                        });
+                        
+                        // 更新UI
+                        updateRecordingsList();
+                        
+                        // 重置
+                        audioChunks = [];
+                        stream.getTracks().forEach(track => track.stop());
+                        
+                        status.textContent = `录音完成 (${timestamp})`;
+                        playBtn.disabled = false;
+                    };
+                    
+                    mediaRecorder.start(100); // 每100ms收集一次数据
+                    audioChunks = [];
+                    
+                    recordBtn.disabled = true;
+                    stopBtn.disabled = false;
+                    playBtn.disabled = true;
+                    status.textContent = '录音中...';
+                } catch (error) {
+                    console.error('录音错误:', error);
+                    status.textContent = '录音错误: ' + error.message;
+                }
+            });
+            
+            // 停止录音
+            stopBtn.addEventListener('click', () => {
+                if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+                    mediaRecorder.stop();
+                    recordBtn.disabled = false;
+                    stopBtn.disabled = true;
+                }
+            });
+            
+            // 播放最新录音
+            playBtn.addEventListener('click', () => {
+                if (recordings.length > 0) {
+                    playRecording(recordings[recordings.length - 1].url);
+                }
+            });
+        }
+        
+        // 播放录音
+        function playRecording(audioUrl) {
+            audioContainer.innerHTML = '';
+            const audio = new Audio(audioUrl);
+            audio.controls = true;
+            audioContainer.appendChild(audio);
+            audio.play();
+        }
+        
+        // 更新录音列表
+        function updateRecordingsList() {
+            recordingsList.innerHTML = '<h3>录音记录</h3>';
+            
+            if (recordings.length === 0) {
+                recordingsList.innerHTML += '<p>暂无录音记录</p>';
+                return;
+            }
+            
+            // 按时间倒序排列
+            const sortedRecordings = [...recordings].reverse();
+            
+            sortedRecordings.forEach((recording, index) => {
+                const item = document.createElement('div');
+                item.className = 'recording-item';
+                
+                const title = document.createElement('div');
+                title.textContent = `录音 ${sortedRecordings.length - index} - ${recording.timestamp}`;
+                
+                const playBtn = document.createElement('button');
+                playBtn.textContent = '播放';
+                playBtn.onclick = () => playRecording(recording.url);
+                
+                const downloadBtn = document.createElement('button');
+                downloadBtn.textContent = '下载';
+                downloadBtn.onclick = () => {
+                    const a = document.createElement('a');
+                    a.href = recording.url;
+                    a.download = `录音-${recording.timestamp}.wav`;
+                    a.click();
+                };
+                
+                item.appendChild(title);
+                item.appendChild(playBtn);
+                item.appendChild(downloadBtn);
+                recordingsList.appendChild(item);
+            });
+        }
+    </script>
+</body>
+</html>
